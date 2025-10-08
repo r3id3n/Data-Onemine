@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mtdataonemine"
+version = "0.1.0"
+description = "MTDataOnemine GUI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pandas",
+  "pyodbc",
+  "SQLAlchemy>=2.0",
+  "python-dotenv",
+  "customtkinter",
+  "tkcalendar",
+  "pyautogui",
+  "pygetwindow",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+mtdataonemine = "mtdataonemine.app.main:main"
