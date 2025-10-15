@@ -65,7 +65,7 @@ def upsert_operadores_remote(
     user = user or REMOTE_USER_DEFAULT
     pwd = pwd or REMOTE_PWD_DEFAULT
 
-    # Normalización vs longitudes típicas en tablas (ajusta si tu schema difiere)
+    # Normalización vs longitudes típicas en tablas
     df = df.copy()
     for col, maxlen in (("FirstName", 50), ("LastName", 50), ("SapNumber", 50)):
         if col in df.columns:
@@ -79,7 +79,6 @@ def upsert_operadores_remote(
                 return None
         df["TagId"] = df["TagId"].apply(_safe_int_or_none)
 
-    # Construir valores para INSERT en #tmp
     rows = [
         (
             int(row.OperatorsId),

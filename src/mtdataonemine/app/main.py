@@ -1,5 +1,4 @@
 from __future__ import annotations
-# Cargar .env primero
 from mtdataonemine.config.env_loader import load_env_once, debug_dump
 load_env_once(verbose=True)
 
@@ -14,9 +13,8 @@ from mtdataonemine.ui.tabs.cartir_view import build_cartir_tab
 from mtdataonemine.ui.tabs.loopdata_view import build_loopdata_tab
 from mtdataonemine.ui.tabs.operators_view import build_operators_tab
 from mtdataonemine.ui.tabs.estado_view import build_estado_tab
-from mtdataonemine.ui.tabs.tags_view import build_tags_tab  # <-- Tag's (contiene RSSI/Zanjas/Calle)
+from mtdataonemine.ui.tabs.tags_view import build_tags_tab 
 
-# Si NO usas este scaffold en otras pestañas, puedes eliminarlo.
 def build_tab_scaffold(parent: ctk.CTkFrame, title: str, subtitle: str | None = None):
     header = ctk.CTkFrame(parent)
     header.pack(fill="x", padx=10, pady=(10, 6))
@@ -65,7 +63,7 @@ def build_app():
         return _ip_from_combo(ip_var.get())
 
     def get_selected_combo_text():
-        return ip_var.get()  # útil para Tag's (opcional)
+        return ip_var.get()
 
     combo = ctk.CTkComboBox(top, variable=ip_var, values=values, width=360)
     combo.pack(side="left", padx=(8, 8))
@@ -94,7 +92,7 @@ def build_app():
 
     tab_cartir     = tabs.add("Cartir")
     tab_loop       = tabs.add("LoopData")
-    tab_tags       = tabs.add("Tag's")      # <-- NUEVA pestaña contenedora
+    tab_tags       = tabs.add("Tag's") 
     tab_estado     = tabs.add("Estado")
     tab_operadores = tabs.add("Operadores")
 

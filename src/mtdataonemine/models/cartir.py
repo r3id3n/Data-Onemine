@@ -9,4 +9,3 @@ class CartirHeader:
     CreatedAt: str
     UpdatedAt: str
 
-# Puedes agregar más dataclasses si lo necesitas más adelante.
