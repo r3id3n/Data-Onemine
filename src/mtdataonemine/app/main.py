@@ -97,7 +97,12 @@ def build_app():
     tab_operadores = tabs.add("Operadores")
 
     # Cartir
-    build_cartir_tab(tab_cartir, get_selected_ip_cb=get_selected_ip)
+    build_cartir_tab(
+        tab_cartir,
+        get_selected_ip_cb=get_selected_ip,
+        all_equipment_names=[v.split(" - ")[0] for v in values] if values else None,
+        get_selected_combo_text_cb=lambda: ip_var.get()
+    )
 
     # LoopData
     build_loopdata_tab(tab_loop)

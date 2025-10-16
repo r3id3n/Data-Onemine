@@ -82,6 +82,38 @@ def _mostrar_listado_actual(
         txt_faltantes.insert(tk.END, "-".join(faltantes))
         txt_faltantes.configure(state="disabled")
 
+def _append_equipo_a_listado_y_refrescar(
+    equipo_nombre: str,
+    label_fecha: ctk.CTkLabel,
+    txt_actualizados: tk.Text,
+    txt_faltantes: tk.Text | None,
+    all_equipment_names: list[str] | None,
+):
+    """
+    Inserta (si no existe) el nombre en listado_actual.txt y refresca ambos paneles.
+    """
+    path = r"C:\Users\admalex\Desktop\app\listado_actual.txt"
+    existentes: set[str] = set()
+
+    # Lee existentes
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            lineas = f.readlines()
+        if len(lineas) >= 2:
+            existentes = set([x for x in lineas[1].strip().split("-") if x])
+
+    # Agrega si no estaba
+    if equipo_nombre:
+        existentes.add(equipo_nombre)
+
+    # Escribe archivo
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("-".join(sorted(existentes)))
+
+    # Refresca UI (Actualizados y Faltantes globales)
+    _mostrar_listado_actual(label_fecha, txt_actualizados, txt_faltantes, all_equipment_names)
+
 
 # ========================= Vista principal =========================
 
@@ -89,6 +121,7 @@ def build_cartir_tab(
     parent: ctk.CTkFrame,
     get_selected_ip_cb,
     all_equipment_names: list[str] | None = None,
+    get_selected_combo_text_cb = None,
 ):
     """
     parent: Frame del tab "Cartir"
@@ -186,11 +219,21 @@ def build_cartir_tab(
     frame_sync.pack(fill="x", padx=10, pady=(0, 10))
 
     def _insertar_y_sincronizar():
-        """Botón único: Insertar Cartir + Sincronizar Tasks."""
+        """Botón único: Insertar Cartir + Sincronizar Tasks + actualizar listado_actual.txt (por nombre de equipo)."""
         ip = get_selected_ip_cb()
         if not ip:
             messagebox.showerror("Error", "Seleccione una máquina válida (combobox superior).")
             return
+
+        # Tomar nombre limpio del equipo desde el combo si está disponible
+        equipo_nombre = None
+        try:
+            # Si tu main.py ya pasa solo el nombre: "LE001"
+            if 'get_selected_combo_text_cb' in locals() and callable(get_selected_combo_text_cb):
+                raw = get_selected_combo_text_cb() or ""
+                equipo_nombre = raw.split(" - ")[0].strip() if " - " in raw else raw.strip()
+        except Exception:
+            equipo_nombre = None  # no bloqueamos la sync por esto
 
         try:
             # 1) Insertar Cartir (si hay datos)
@@ -209,11 +252,29 @@ def build_cartir_tab(
                 messagebox.showerror("Tasks", "Error durante la sincronización de Tasks.")
                 return
 
-            # 3) Refrescar listados desde archivo (si existe configuración)
+            # 3) Si todo salió bien: escribir/actualizar listado_actual.txt con el NOMBRE del equipo
+            if equipo_nombre:
+                import os
+                path = r"C:\Users\admalex\Desktop\app\listado_actual.txt"
+
+                existentes: set[str] = set()
+                if os.path.exists(path):
+                    with open(path, "r", encoding="utf-8") as f:
+                        lineas = f.readlines()
+                    if len(lineas) >= 2:
+                        existentes = set([x for x in lineas[1].strip().split("-") if x])
+
+                existentes.add(equipo_nombre)
+
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("-".join(sorted(existentes)))
+
+            # 4) Refrescar panel de listados (Actualizados + Faltantes)
             _mostrar_listado_actual(
                 label_actualizados_fecha,
                 text_equipos_actualizados,
-                text_equipos_faltantes,
+                text_equipos_faltantes,  # usa all_equipment_names para calcular faltantes
                 all_equipment_names,
             )
 
@@ -222,14 +283,17 @@ def build_cartir_tab(
         except Exception as e:
             messagebox.showerror("Error", f"Error en la sincronización: {e}")
 
+
     ctk.CTkButton(
         frame_sync, text="Sincronizar (Cartir + Tasks)", command=_insertar_y_sincronizar
     ).pack(side="left", padx=10, pady=10)
+
 
     def _actualizar_equipos_externo():
         """Ejecuta EXE externo y mergea equipos_completados.txt → listado_actual.txt."""
         import subprocess
         import logging
+        import os
 
         try:
             exe_path = r"C:\Users\admalex\Desktop\app\CARTIR_NightShift.exe"
@@ -269,6 +333,7 @@ def build_cartir_tab(
         except Exception as e:
             logging.error(f"Error al actualizar equipos: {e}")
             messagebox.showerror("Error", f"Ocurrió un error al actualizar equipos: {e}")
+
 
     ctk.CTkButton(
         frame_sync, text="Actualizar Equipos (EXE)", command=_actualizar_equipos_externo
@@ -364,7 +429,7 @@ def build_cartir_tab(
         tree_macro.column(col, anchor="center", width=160)
     tree_macro.pack(fill="x", pady=(2, 6))
 
-    # --------- NUEVO: Detalle de Tasks (filtros) solo en INFORME ---------
+    # --------- Detalle de Tasks (filtros) solo en INFORME ---------
     ctk.CTkLabel(frame_inf, text="Detalle de Tasks", font=("Arial", 13, "bold")).pack(anchor="w", pady=(6, 2))
 
     filtros_det = ctk.CTkFrame(frame_inf)
@@ -472,7 +537,7 @@ def build_cartir_tab(
         for _, row in df_macro.iterrows():
             tree_macro.insert("", "end", values=[row["Macro"], int(row["Total PailQuantity"])])
 
-        # ---- NUEVO: cachear y pintar Detalle con columnas solicitadas ----
+        # ---- cachear y pintar Detalle con columnas solicitadas ----
         det_cache = det_total if det_total is not None else pd.DataFrame()
         _pintar_detalle(det_cache)
 
