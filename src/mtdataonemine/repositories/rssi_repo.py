@@ -100,7 +100,7 @@ DECLARE @fechaFin    datetimeoffset(7) = ?;
 
 SELECT 
     RawDatas.TagId,
-    B.Name AS MB,
+    B.Name AS Calle,
     A.Name AS Zanja,
     RawDatas.RSSI,
     CAST(RawDatas.Timestamp AS smalldatetime) AS [Timestamp],

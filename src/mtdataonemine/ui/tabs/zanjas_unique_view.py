@@ -18,7 +18,7 @@ def build_zanjas_unique_tab(parent: ctk.CTkFrame, get_selected_ip_cb):
 
     # --------- Parámetros de consulta ---------
     params = ctk.CTkFrame(parent); params.pack(fill="x", padx=10, pady=(10,6))
-    ctk.CTkLabel(params, text="Zanjas (lecturas únicas por TagId/MB/Zanja)", font=("Arial", 16, "bold"))\
+    ctk.CTkLabel(params, text="Zanjas (lecturas únicas por TagId/Calle/Zanja)", font=("Arial", 16, "bold"))\
         .pack(anchor="w")
 
     line = ctk.CTkFrame(params); line.pack(fill="x", padx=6, pady=(6,4))
@@ -46,7 +46,7 @@ def build_zanjas_unique_tab(parent: ctk.CTkFrame, get_selected_ip_cb):
     filtro_mb_var = ctk.StringVar(value="")
     filtro_zanja_var = ctk.StringVar(value="")
 
-    ctk.CTkLabel(filtros, text="MB:").grid(row=1, column=0, sticky="w", padx=(10,2))
+    ctk.CTkLabel(filtros, text="Calle:").grid(row=1, column=0, sticky="w", padx=(10,2))
     ctk.CTkEntry(filtros, textvariable=filtro_mb_var, width=120).grid(row=1, column=1, padx=(0,10))
 
     ctk.CTkLabel(filtros, text="Zanja:").grid(row=1, column=2, sticky="w", padx=(10,2))
@@ -58,14 +58,14 @@ def build_zanjas_unique_tab(parent: ctk.CTkFrame, get_selected_ip_cb):
     # --------- Resultados ---------
     body = ctk.CTkFrame(parent); body.pack(fill="both", expand=True, padx=10, pady=(0,10))
 
-    ctk.CTkLabel(body, text="Detalle (único por TagId, MB, Zanja)", font=("Arial", 14, "bold"))\
+    ctk.CTkLabel(body, text="Detalle (único por TagId, Calle, Zanja)", font=("Arial", 14, "bold"))\
         .pack(anchor="w", padx=6, pady=(6,4))
 
     cont = tk.Frame(body); cont.pack(fill="both", expand=True)
     sy = ttk.Scrollbar(cont, orient="vertical"); sy.pack(side="right", fill="y")
     sx = ttk.Scrollbar(cont, orient="horizontal"); sx.pack(side="bottom", fill="x")
 
-    cols = ["TagId", "MB", "Zanja", "BatteryStatus"]
+    cols = ["TagId", "Calle", "Zanja", "BatteryStatus"]
     tree = ttk.Treeview(cont, columns=cols, show="headings",
                         yscrollcommand=sy.set, xscrollcommand=sx.set)
     sy.config(command=tree.yview); sx.config(command=tree.xview)
@@ -110,7 +110,7 @@ def build_zanjas_unique_tab(parent: ctk.CTkFrame, get_selected_ip_cb):
         zanja = filtro_zanja_var.get().strip().lower()
         df_filt = _df.copy()
         if mb:
-            df_filt = df_filt[df_filt["MB"].astype(str).str.lower().str.contains(mb)]
+            df_filt = df_filt[df_filt["Calle"].astype(str).str.lower().str.contains(mb)]
         if zanja:
             df_filt = df_filt[df_filt["Zanja"].astype(str).str.lower().str.contains(zanja)]
         _fill_tree(df_filt)

@@ -30,11 +30,11 @@ def build_rssi_tab(parent: ctk.CTkFrame, get_selected_ip_cb):
 
     # ---------- Filtros ----------
     filtros = ctk.CTkFrame(parent); filtros.pack(padx=10, pady=10, fill="x")
-    ctk.CTkLabel(filtros, text="Filtro por MB y Zanja", font=("Arial",14,"bold"))\
+    ctk.CTkLabel(filtros, text="Filtro por Calle y Zanja", font=("Arial",14,"bold"))\
         .grid(row=0, column=0, columnspan=4, sticky="w", padx=10, pady=(5,0))
     f_mb = ctk.StringVar();  f_z = ctk.StringVar()
 
-    ctk.CTkLabel(filtros, text="MB:").grid(row=1, column=0, sticky="w", padx=(10,5), pady=5)
+    ctk.CTkLabel(filtros, text="Calle:").grid(row=1, column=0, sticky="w", padx=(10,5), pady=5)
     ctk.CTkEntry(filtros, textvariable=f_mb, width=150).grid(row=1, column=1, padx=5)
 
     ctk.CTkLabel(filtros, text="Zanja:").grid(row=1, column=2, sticky="w", padx=(10,5), pady=5)
@@ -52,7 +52,7 @@ def build_rssi_tab(parent: ctk.CTkFrame, get_selected_ip_cb):
     ctk.CTkLabel(res, text="Resultados RSSI", font=("Arial",14,"bold"))\
         .pack(anchor="w", padx=10, pady=(5,0))
 
-    cols = ["TagId", "MB", "Zanja", "RSSI", "Timestamp", "BatteryStatus"]
+    cols = ["TagId", "Calle", "Zanja", "RSSI", "Timestamp", "BatteryStatus"]
     wrap = tk.Frame(res); wrap.pack(fill="both", expand=True)
     scroll_y = ttk.Scrollbar(wrap, orient="vertical"); scroll_y.pack(side="right", fill="y")
     tree = ttk.Treeview(wrap, columns=cols, show="headings", yscrollcommand=scroll_y.set)

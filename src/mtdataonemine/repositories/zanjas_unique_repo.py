@@ -13,7 +13,7 @@ DECLARE @fechaFin    datetimeoffset(7) = ?;
 
 SELECT
     r.TagId                               AS TagId,
-    b.Name                                AS MB,
+    b.Name                                AS Calle,
     a.Name                                AS Zanja,
     r.RSSI                                AS RSSI,
     CAST(r.[Timestamp] AS smalldatetime)  AS [Timestamp],
@@ -48,7 +48,7 @@ def fetch_zanjas_unique_raw(
     retries: int = 2,
 ) -> pd.DataFrame:
     """
-    Trae las lecturas RSSI (TagId, MB, Zanja, RSSI, Timestamp, BatteryStatus)
+    Trae las lecturas RSSI (TagId, Calle, Zanja, RSSI, Timestamp, BatteryStatus)
     del equipo remoto entre start_iso y end_iso (ambos en formato con offset,
     ej. 'YYYY-mm-dd HH:MM:SS.ffffff -03:00').
 

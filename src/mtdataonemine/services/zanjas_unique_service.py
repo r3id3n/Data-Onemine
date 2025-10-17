@@ -67,11 +67,11 @@ def obtener_zanjas_unique(
     else:
         df["__ts__"] = pd.NaT
 
-    # Dejar una sola fila por (TagId, MB, Zanja) quedándonos con la última (más reciente)
-    dedup = df.drop_duplicates(subset=["TagId", "MB", "Zanja"], keep="last")
+    # Dejar una sola fila por (TagId, Calle, Zanja) quedándonos con la última (más reciente)
+    dedup = df.drop_duplicates(subset=["TagId", "Calle", "Zanja"], keep="last")
 
     # Salida final solicitada
-    out = dedup[["TagId", "MB", "Zanja", "BatteryStatus"]].reset_index(drop=True)
+    out = dedup[["TagId", "Calle", "Zanja", "BatteryStatus"]].reset_index(drop=True)
     return out
 
 def exportar_zanjas_unique_excel(df: pd.DataFrame, destino: Optional[str] = None) -> str:
