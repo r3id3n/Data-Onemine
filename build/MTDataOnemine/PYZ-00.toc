@@ -1991,6 +1991,10 @@
    'Valencia\\Documents\\Onemine\\cartir_onemine_python\\MTDataOnemine\\src\\mtdataonemine\\ui\\tabs\\zanjas_unique_view.py',
    'PYMODULE'),
   ('mtdataonemine.utils', '-', 'PYMODULE'),
+  ('mtdataonemine.utils.cleanup',
+   'C:\\Users\\Felipe '
+   'Valencia\\Documents\\Onemine\\cartir_onemine_python\\MTDataOnemine\\src\\mtdataonemine\\utils\\cleanup.py',
+   'PYMODULE'),
   ('mtdataonemine.utils.tz',
    'C:\\Users\\Felipe '
    'Valencia\\Documents\\Onemine\\cartir_onemine_python\\MTDataOnemine\\src\\mtdataonemine\\utils\\tz.py',

@@ -14,6 +14,7 @@ from mtdataonemine.ui.tabs.loopdata_view import build_loopdata_tab
 from mtdataonemine.ui.tabs.operators_view import build_operators_tab
 from mtdataonemine.ui.tabs.estado_view import build_estado_tab
 from mtdataonemine.ui.tabs.tags_view import build_tags_tab 
+from mtdataonemine.utils.cleanup import start_daily_log_reset
 
 def build_tab_scaffold(parent: ctk.CTkFrame, title: str, subtitle: str | None = None):
     header = ctk.CTkFrame(parent)
@@ -133,6 +134,15 @@ def build_app():
         "REMOTE_SQL_SERVER","REMOTE_SQL_DATABASE","REMOTE_SQL_USER","REMOTE_SQL_PASSWORD","REMOTE_SQL_PORT",
         "VNC_EXE","VNC_PASSWORD"
     ]))
+
+    # Iniciar borrado programado 08:00 y 20:00
+    start_daily_log_reset(
+        paths=[
+            r"C:\Users\admalex\Desktop\app\listado_actual.txt",
+            r"C:\Users\admalex\Desktop\app\equipos_completados.txt",
+        ],
+        hours=(8, 20),
+    )
 
     return app
 
