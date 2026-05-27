@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import threading
 from pathlib import Path
 import tkinter as tk
 import customtkinter as ctk
@@ -219,8 +220,17 @@ def build_cartir_tab(
     frame_sync = ctk.CTkFrame(panel_equipos)
     frame_sync.pack(fill="x", padx=10, pady=(0, 10))
 
+    btn_sincronizar = None
+    btn_actualizar_exe = None
+
+    def _set_buttons_state(state: str):
+        if btn_sincronizar:
+            btn_sincronizar.configure(state=state)
+        if btn_actualizar_exe:
+            btn_actualizar_exe.configure(state=state)
+
     def _insertar_y_sincronizar():
-        """Botón único: Insertar Cartir + Sincronizar Tasks + actualizar listado_actual.txt (por nombre de equipo)."""
+        """Botón único: Insertar Cartir + Sincronizar Tasks + actualizar listado_actual.txt (por nombre de equipo) sin bloquear la UI."""
         ip = get_selected_ip_cb()
         if not ip:
             messagebox.showerror("Error", "Seleccione una máquina válida (combobox superior).")
@@ -230,116 +240,152 @@ def build_cartir_tab(
         equipo_nombre = None
         try:
             # Si tu main.py ya pasa solo el nombre: "LE001"
-            if 'get_selected_combo_text_cb' in locals() and callable(get_selected_combo_text_cb):
+            if get_selected_combo_text_cb is not None and callable(get_selected_combo_text_cb):
                 raw = get_selected_combo_text_cb() or ""
                 equipo_nombre = raw.split(" - ")[0].strip() if " - " in raw else raw.strip()
         except Exception:
             equipo_nombre = None  # no bloqueamos la sync por esto
 
-        try:
-            # 1) Insertar Cartir (si hay datos)
-            df_cartir_local = obtener_datos_cartir_local()
-            if df_cartir_local is None or df_cartir_local.empty:
-                messagebox.showwarning("Advertencia", "No hay datos de Cartir para insertar.")
-            else:
-                ok_c = insertar_cartirs_remoto(ip, df_cartir_local)
-                if not ok_c:
-                    messagebox.showerror("Cartir", "Error insertando Cartir en remoto.")
-                    return  # si falla Cartir, no seguimos
+        # Deshabilitar botones al iniciar la tarea asíncrona
+        _set_buttons_state("disabled")
 
-            # 2) Sincronizar Tasks (eliminar + insertar)
-            ok_t = sincronizar_tasks(ip)
-            if not ok_t:
-                messagebox.showerror("Tasks", "Error durante la sincronización de Tasks.")
-                return
+        def on_sync_complete(success: bool, msg_type: str, title: str, text: str):
+            _set_buttons_state("normal")
+            if msg_type == "info":
+                messagebox.showinfo(title, text)
+            elif msg_type == "warning":
+                messagebox.showwarning(title, text)
+            elif msg_type == "error":
+                messagebox.showerror(title, text)
 
-            # 3) Si todo salió bien: escribir/actualizar listado_actual.txt con el NOMBRE del equipo
-            if equipo_nombre:
-                import os
-                path = str(Path.home() / "Desktop" / "app" / "listado_actual.txt")
-
-                existentes: set[str] = set()
-                if os.path.exists(path):
-                    with open(path, "r", encoding="utf-8") as f:
-                        lineas = f.readlines()
-                    if len(lineas) >= 2:
-                        existentes = set([x for x in lineas[1].strip().split("-") if x])
-
-                existentes.add(equipo_nombre)
-
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write("-".join(sorted(existentes)))
-
-            # 4) Refrescar panel de listados (Actualizados + Faltantes)
-            _mostrar_listado_actual(
-                label_actualizados_fecha,
-                text_equipos_actualizados,
-                text_equipos_faltantes,  # usa all_equipment_names para calcular faltantes
-                all_equipment_names,
-            )
-
-            messagebox.showinfo("OK", "Sincronización completa (Cartir + Tasks).")
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Error en la sincronización: {e}")
-
-
-    ctk.CTkButton(
-        frame_sync, text="Sincronizar (Cartir + Tasks)", command=_insertar_y_sincronizar
-    ).pack(side="left", padx=10, pady=10)
-
-
-    def _actualizar_equipos_externo():
-        """Ejecuta EXE externo y mergea equipos_completados.txt → listado_actual.txt."""
-        import subprocess
-        import logging
-        import os
-
-        try:
-            desktop_app_dir = Path.home() / "Desktop" / "app"
-            exe_path = str(desktop_app_dir / "CARTIR_NightShift.exe")
-            completados_path = str(desktop_app_dir / "equipos_completados.txt")
-            listado_actual_path = str(desktop_app_dir / "listado_actual.txt")
-
-            subprocess.run([exe_path], check=True)
-
-            # Merge
-            nuevos = set()
-            if os.path.exists(completados_path):
-                with open(completados_path, "r", encoding="utf-8") as f:
-                    lineas = [l.strip() for l in f.readlines() if l.strip()]
-                if lineas:
-                    nuevos = set(lineas[-1].split("-"))
-
-            existentes = set()
-            if os.path.exists(listado_actual_path):
-                with open(listado_actual_path, "r", encoding="utf-8") as f:
-                    lineas = f.readlines()
-                if len(lineas) >= 2:
-                    existentes = set([x for x in lineas[1].strip().split("-") if x])
-
-            union = sorted(existentes.union(nuevos))
-            with open(listado_actual_path, "w", encoding="utf-8") as f:
-                f.write(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("-".join(union))
-
+            # Refrescar panel de listados de forma segura en el hilo principal
             _mostrar_listado_actual(
                 label_actualizados_fecha,
                 text_equipos_actualizados,
                 text_equipos_faltantes,
                 all_equipment_names,
             )
-            messagebox.showinfo("Éxito", "Equipos actualizados correctamente.")
 
-        except Exception as e:
-            logging.error(f"Error al actualizar equipos: {e}")
-            messagebox.showerror("Error", f"Ocurrió un error al actualizar equipos: {e}")
+        def worker():
+            try:
+                # 1) Insertar Cartir (si hay datos)
+                df_cartir_local = obtener_datos_cartir_local()
+                if df_cartir_local is None or df_cartir_local.empty:
+                    parent.after(0, on_sync_complete, False, "warning", "Advertencia", "No hay datos de Cartir para insertar.")
+                    return
+                else:
+                    ok_c = insertar_cartirs_remoto(ip, df_cartir_local)
+                    if not ok_c:
+                        parent.after(0, on_sync_complete, False, "error", "Cartir", "Error insertando Cartir en remoto.")
+                        return  # si falla Cartir, no seguimos
+
+                # 2) Sincronizar Tasks (eliminar + insertar)
+                ok_t = sincronizar_tasks(ip)
+                if not ok_t:
+                    parent.after(0, on_sync_complete, False, "error", "Tasks", "Error durante la sincronización de Tasks.")
+                    return
+
+                # 3) Si todo salió bien: escribir/actualizar listado_actual.txt con el NOMBRE del equipo
+                if equipo_nombre:
+                    import os
+                    path = str(Path.home() / "Desktop" / "app" / "listado_actual.txt")
+
+                    existentes: set[str] = set()
+                    if os.path.exists(path):
+                        with open(path, "r", encoding="utf-8") as f:
+                            lineas = f.readlines()
+                        if len(lineas) >= 2:
+                            existentes = set([x for x in lineas[1].strip().split("-") if x])
+
+                    existentes.add(equipo_nombre)
+
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write("-".join(sorted(existentes)))
+
+                # Invocar callback exitoso en el hilo de la UI
+                parent.after(0, on_sync_complete, True, "info", "OK", "Sincronización completa (Cartir + Tasks).")
+
+            except Exception as e:
+                parent.after(0, on_sync_complete, False, "error", "Error", f"Error en la sincronización: {e}")
+
+        # Lanzar el hilo secundario
+        threading.Thread(target=worker, daemon=True).start()
 
 
-    ctk.CTkButton(
+    btn_sincronizar = ctk.CTkButton(
+        frame_sync, text="Sincronizar (Cartir + Tasks)", command=_insertar_y_sincronizar
+    )
+    btn_sincronizar.pack(side="left", padx=10, pady=10)
+
+
+    def _actualizar_equipos_externo():
+        """Ejecuta EXE externo y mergea equipos_completados.txt → listado_actual.txt sin bloquear la UI."""
+        import subprocess
+        import logging
+        import os
+
+        # Deshabilitar botones al iniciar el subproceso externo
+        _set_buttons_state("disabled")
+
+        def on_exe_complete(success: bool, msg_type: str, title: str, text: str):
+            _set_buttons_state("normal")
+            if msg_type == "info":
+                messagebox.showinfo(title, text)
+            elif msg_type == "error":
+                messagebox.showerror(title, text)
+
+            # Refrescar panel de listados de forma segura en el hilo principal
+            _mostrar_listado_actual(
+                label_actualizados_fecha,
+                text_equipos_actualizados,
+                text_equipos_faltantes,
+                all_equipment_names,
+            )
+
+        def worker():
+            try:
+                desktop_app_dir = Path.home() / "Desktop" / "app"
+                exe_path = str(desktop_app_dir / "CARTIR_NightShift.exe")
+                completados_path = str(desktop_app_dir / "equipos_completados.txt")
+                listado_actual_path = str(desktop_app_dir / "listado_actual.txt")
+
+                subprocess.run([exe_path], check=True)
+
+                # Merge
+                nuevos = set()
+                if os.path.exists(completados_path):
+                    with open(completados_path, "r", encoding="utf-8") as f:
+                        lineas = [l.strip() for l in f.readlines() if l.strip()]
+                    if lineas:
+                        nuevos = set(lineas[-1].split("-"))
+
+                existentes = set()
+                if os.path.exists(listado_actual_path):
+                    with open(listado_actual_path, "r", encoding="utf-8") as f:
+                        lineas = f.readlines()
+                    if len(lineas) >= 2:
+                        existentes = set([x for x in lineas[1].strip().split("-") if x])
+
+                union = sorted(existentes.union(nuevos))
+                with open(listado_actual_path, "w", encoding="utf-8") as f:
+                    f.write(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("-".join(union))
+
+                parent.after(0, on_exe_complete, True, "info", "Éxito", "Equipos actualizados correctamente.")
+
+            except Exception as e:
+                logging.error(f"Error al actualizar equipos: {e}")
+                parent.after(0, on_exe_complete, False, "error", "Error", f"Ocurrió un error al actualizar equipos: {e}")
+
+        # Lanzar el hilo secundario
+        threading.Thread(target=worker, daemon=True).start()
+
+
+    btn_actualizar_exe = ctk.CTkButton(
         frame_sync, text="Actualizar Equipos (EXE)", command=_actualizar_equipos_externo
-    ).pack(side="left", padx=10, pady=10)
+    )
+    btn_actualizar_exe.pack(side="left", padx=10, pady=10)
 
     # --- Equipos Actualizados ---
     frame_equipos_actualizados = ctk.CTkFrame(panel_equipos)

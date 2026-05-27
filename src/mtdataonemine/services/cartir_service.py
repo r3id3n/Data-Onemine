@@ -6,6 +6,8 @@ from datetime import datetime
 from sqlalchemy.engine import Engine
 from typing import Optional, Dict, Any
 
+from mtdataonemine.config.env_loader import get_env
+
 from mtdataonemine.db.connections import get_engine_local
 from mtdataonemine.db.connections import get_engine
 from mtdataonemine.repositories.cartir_repo import (
@@ -25,9 +27,9 @@ def get_shift_id() -> int:
 
 # === Conexión remota por IP ===
 def _remote_conn_string(ip: str) -> str:
-    remote_db = os.getenv("REMOTE_SQL_DATABASE")
-    remote_user = os.getenv("REMOTE_SQL_USER")
-    remote_pwd  = os.getenv("REMOTE_SQL_PASSWORD")
+    remote_db = get_env("REMOTE_SQL_DATABASE")
+    remote_user = get_env("REMOTE_SQL_USER")
+    remote_pwd  = get_env("REMOTE_SQL_PASSWORD")
     return (
         f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER=tcp:{ip},1433;"
         f"DATABASE={remote_db};UID={remote_user};PWD={remote_pwd};"
@@ -49,15 +51,20 @@ def validar_cartirs_remoto(ip: str, df: pd.DataFrame, silencioso: bool = True) -
 
     connstr = _remote_conn_string(ip)
     try:
+        cartirs_ids = [int(x) for x in df["CartirsId"].dropna().unique()]
+        if not cartirs_ids:
+            return pd.DataFrame()
+
+        placeholders = ",".join("?" for _ in cartirs_ids)
+        query = f"SELECT CartirsId FROM [dbo].[Cartirs] WHERE CartirsId IN ({placeholders})"
+
         with pyodbc.connect(connstr) as cx:
             cur = cx.cursor()
-            existentes = set()
-            for _, row in df.iterrows():
-                cur.execute("SELECT COUNT(*) FROM [dbo].[Cartirs] WHERE CartirsId = ?", (row["CartirsId"],))
-                if cur.fetchone()[0] > 0:
-                    existentes.add(row["CartirsId"])
-            filtrado = df[~df["CartirsId"].isin(existentes)]
-            return filtrado
+            cur.execute(query, cartirs_ids)
+            existentes = {row[0] for row in cur.fetchall()}
+
+        filtrado = df[~df["CartirsId"].isin(existentes)]
+        return filtrado
     except Exception as e:
         log.error(f"validar_cartirs_remoto(): {e}")
         return pd.DataFrame()
@@ -70,13 +77,23 @@ def insertar_cartirs_remoto(ip: str, df: pd.DataFrame) -> bool:
 
     connstr = _remote_conn_string(ip)
     try:
+        insert_query = """
+            INSERT INTO [dbo].[Cartirs] (CartirsId, Name, CartirDate, CreatedAt, UpdatedAt)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        params_list = []
+        for _, r in df_new.iterrows():
+            params_list.append((
+                r["CartirsId"],
+                r["Name"],
+                r["CartirDate"],
+                r["CreatedAt"],
+                r["UpdatedAt"]
+            ))
+
         with pyodbc.connect(connstr) as cx:
             cur = cx.cursor()
-            for _, r in df_new.iterrows():
-                cur.execute("""
-                    INSERT INTO [dbo].[Cartirs] (CartirsId, Name, CartirDate, CreatedAt, UpdatedAt)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (r["CartirsId"], r["Name"], r["CartirDate"], r["CreatedAt"], r["UpdatedAt"]))
+            cur.executemany(insert_query, params_list)
             cx.commit()
         return True
     except Exception as e:
@@ -120,28 +137,55 @@ def insertar_tasks_remoto(ip: str) -> bool:
         return True
 
     df.columns = df.columns.str.lower()
+    local_task_ids = [int(x) for x in df["taskid"].dropna().unique()]
+    if not local_task_ids:
+        return True
+
+    placeholders = ",".join("?" for _ in local_task_ids)
+    query = f"SELECT TasksId FROM Tasks WHERE TasksId IN ({placeholders})"
     connstr = _remote_conn_string(ip)
+
     try:
         with pyodbc.connect(connstr) as cx:
             cur = cx.cursor()
-            for _, row in df.iterrows():
-                tasks_id = row.get("taskid")
-                if tasks_id is None:
-                    continue
-                cur.execute("SELECT COUNT(*) FROM Tasks WHERE TasksId = ?", (tasks_id,))
-                if cur.fetchone()[0] > 0:
-                    continue
-                cur.execute("""
-                    INSERT INTO Tasks (TasksId, CartirId, ShiftId, SectorId, StreetId, SpotId, 
-                                       PailQuantity, PailVolume, TaskStartAt, CreatedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    tasks_id, row.get("cartirid"), row.get("shiftid"),
-                    row.get("sectorid"), row.get("streetid"), row.get("spotid"),
-                    row.get("pailquantity"), row.get("pailvolume"),
-                    row.get("taskstart"), row.get("createdat")
-                ))
+            # 1) Obtener todos los IDs de Tasks existentes en el remoto en una única consulta
+            cur.execute(query, local_task_ids)
+            existentes = {row[0] for row in cur.fetchall()}
+
+        # 2) Filtrar de forma vectorizada las Tasks locales que no existen en remoto
+        df_nuevas = df[~df["taskid"].isin(existentes)]
+        if df_nuevas.empty:
+            log.info("No hay Tasks nuevas para insertar.")
+            return True
+
+        # 3) Preparar los parámetros de inserción masiva en tuplas
+        insert_query = """
+            INSERT INTO Tasks (TasksId, CartirId, ShiftId, SectorId, StreetId, SpotId, 
+                               PailQuantity, PailVolume, TaskStartAt, CreatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params_list = []
+        for _, row in df_nuevas.iterrows():
+            params_list.append((
+                row.get("taskid"),
+                row.get("cartirid"),
+                row.get("shiftid"),
+                row.get("sectorid"),
+                row.get("streetid"),
+                row.get("spotid"),
+                row.get("pailquantity"),
+                row.get("pailvolume"),
+                row.get("taskstart"),
+                row.get("createdat")
+            ))
+
+        # 4) Realizar inserción masiva por lotes usando executemany con pyodbc
+        with pyodbc.connect(connstr) as cx:
+            cur = cx.cursor()
+            cur.executemany(insert_query, params_list)
             cx.commit()
+
+        log.info(f"Sincronizadas {len(params_list)} Tasks de forma masiva (executemany).")
         return True
     except Exception as e:
         log.error(f"insertar_tasks_remoto(): {e}")
