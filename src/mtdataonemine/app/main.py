@@ -136,10 +136,11 @@ def build_app():
     ]))
 
     # Iniciar borrado programado 08:00 y 20:00
+    desktop_app_dir = Path.home() / "Desktop" / "app"
     start_daily_log_reset(
         paths=[
-            r"C:\Users\admalex\Desktop\app\listado_actual.txt",
-            r"C:\Users\admalex\Desktop\app\equipos_completados.txt",
+            str(desktop_app_dir / "listado_actual.txt"),
+            str(desktop_app_dir / "equipos_completados.txt"),
         ],
         hours=(8, 20),
     )

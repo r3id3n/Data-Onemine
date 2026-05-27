@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from pathlib import Path
 import tkinter as tk
 import customtkinter as ctk
 from tkinter import ttk, messagebox
@@ -41,7 +42,7 @@ def _mostrar_listado_actual(
     Lee listado_actual.txt y actualiza los widgets.
     Si se entrega all_equipment_names, calcula faltantes.
     """
-    path_log = r"C:\Users\admalex\Desktop\app\listado_actual.txt"
+    path_log = str(Path.home() / "Desktop" / "app" / "listado_actual.txt")
 
     if not os.path.exists(path_log):
         # limpiar vistas
@@ -92,7 +93,7 @@ def _append_equipo_a_listado_y_refrescar(
     """
     Inserta (si no existe) el nombre en listado_actual.txt y refresca ambos paneles.
     """
-    path = r"C:\Users\admalex\Desktop\app\listado_actual.txt"
+    path = str(Path.home() / "Desktop" / "app" / "listado_actual.txt")
     existentes: set[str] = set()
 
     # Lee existentes
@@ -255,7 +256,7 @@ def build_cartir_tab(
             # 3) Si todo salió bien: escribir/actualizar listado_actual.txt con el NOMBRE del equipo
             if equipo_nombre:
                 import os
-                path = r"C:\Users\admalex\Desktop\app\listado_actual.txt"
+                path = str(Path.home() / "Desktop" / "app" / "listado_actual.txt")
 
                 existentes: set[str] = set()
                 if os.path.exists(path):
@@ -296,9 +297,10 @@ def build_cartir_tab(
         import os
 
         try:
-            exe_path = r"C:\Users\admalex\Desktop\app\CARTIR_NightShift.exe"
-            completados_path = r"C:\Users\admalex\Desktop\app\equipos_completados.txt"
-            listado_actual_path = r"C:\Users\admalex\Desktop\app\listado_actual.txt"
+            desktop_app_dir = Path.home() / "Desktop" / "app"
+            exe_path = str(desktop_app_dir / "CARTIR_NightShift.exe")
+            completados_path = str(desktop_app_dir / "equipos_completados.txt")
+            listado_actual_path = str(desktop_app_dir / "listado_actual.txt")
 
             subprocess.run([exe_path], check=True)
 

@@ -5,6 +5,7 @@ import threading
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from pathlib import Path
 
 _CL_TZ = ZoneInfo("America/Santiago")
 
@@ -65,9 +66,10 @@ def start_daily_log_reset(paths: list[str] | None = None, hours: tuple[int, int]
     Devuelve el hilo, por si quieres guardarlo.
     """
     if not paths:
+        desktop_app_dir = Path.home() / "Desktop" / "app"
         paths = [
-            r"C:\Users\admalex\Desktop\app\listado_actual.txt",
-            r"C:\Users\admalex\Desktop\app\equipos_completados.txt",
+            str(desktop_app_dir / "listado_actual.txt"),
+            str(desktop_app_dir / "equipos_completados.txt"),
         ]
     t = threading.Thread(target=_run_cleanup_loop, args=(paths, hours), daemon=True)
     t.start()

@@ -1,56 +1,62 @@
 from __future__ import annotations
-import os, time, logging
-import pyautogui, pygetwindow as gw
+import os
+import logging
+import subprocess
 from tkinter import messagebox
 from mtdataonemine.config.env_loader import get_env
 
-def _sanitize_ip(ip: str|None) -> str:
+log = logging.getLogger("mtdataonemine.services.vnc")
+
+def _sanitize_ip(ip: str | None) -> str:
     return (ip or "").replace(" ", "")
 
-def _wait_for_window(title_substr: str, attempts=12, delay=0.5):
-    for _ in range(attempts):
-        wins = gw.getWindowsWithTitle(title_substr)
-        if wins: return wins
-        time.sleep(delay)
-    return []
-
-def conectar_tightvnc(ip: str|None):
+def conectar_tightvnc(ip: str | None):
     ip = _sanitize_ip(ip)
     if not ip:
-        messagebox.showerror("Error","IP inválida.")
+        messagebox.showerror("Error", "IP inválida.")
+        log.warning("Intento de conexión TightVNC fallido: IP vacía o inválida.")
         return
 
     vnc_exe = get_env("VNC_EXE") or r"C:\Program Files\TightVNC\tvnviewer.exe"
     vnc_password = get_env("VNC_PASSWORD") or ""
 
     if not os.path.exists(vnc_exe):
-        messagebox.showerror("Error", f"No se encontró TightVNC: {vnc_exe}")
+        err_msg = f"No se encontró el ejecutable de TightVNC en la ruta especificada: {vnc_exe}"
+        messagebox.showerror("Error", err_msg)
+        log.error(err_msg)
         return
 
+    # Construir el comando con argumentos nativos de línea de comandos de tvnviewer
+    # tvnviewer.exe [host] -password=[password] o similar
+    cmd = [vnc_exe, ip]
+    if vnc_password:
+        cmd.append(f"-password={vnc_password}")
+    else:
+        log.warning("VNC_PASSWORD no está definido en el archivo de entorno (.env).")
+        messagebox.showwarning("Atención", "VNC_PASSWORD no está configurado. Es posible que TightVNC solicite la clave manualmente.")
+
     try:
-        os.startfile(vnc_exe)
-        time.sleep(1.5)
-
-        w = _wait_for_window("New TightVNC Connection")
-        if not w: 
-            messagebox.showerror("Error","No se detectó ventana de conexión.")
-            return
-        try: w[0].activate()
-        except Exception: pass
-        time.sleep(0.2)
-
-        pyautogui.write(ip); time.sleep(0.2); pyautogui.press("enter"); time.sleep(1.5)
-
-        a = _wait_for_window("Vnc Authentication")
-        if not a:
-            messagebox.showerror("Error","No se detectó autenticación.")
-            return
-        try: a[0].activate()
-        except Exception: pass
-        time.sleep(0.2)
-        if not vnc_password:
-            messagebox.showwarning("Atención","VNC_PASSWORD no definido.")
-        pyautogui.write(vnc_password or ""); time.sleep(0.2); pyautogui.press("enter")
+        log.info(f"Iniciando conexión TightVNC al host: {ip}")
+        # Popen en modo asíncrono para no colgar la UI de CustomTkinter
+        # startupinfo opcional para evitar mostrar ventana de consola CMD
+        startupinfo = None
+        if os.name == 'nt':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            # CREATE_NO_WINDOW = 0x08000000
+            subprocess.Popen(cmd, startupinfo=startupinfo, creationflags=0x08000000)
+        else:
+            subprocess.Popen(cmd)
+            
+    except FileNotFoundError as fnf_err:
+        err_msg = f"No se pudo encontrar el archivo ejecutable al intentar lanzar VNC: {fnf_err}"
+        log.error(err_msg)
+        messagebox.showerror("Error", err_msg)
+    except subprocess.SubprocessError as sub_err:
+        err_msg = f"Ocurrió un error al lanzar el subproceso TightVNC Viewer: {sub_err}"
+        log.error(err_msg)
+        messagebox.showerror("Error", err_msg)
     except Exception as e:
-        logging.error(f"VNC: {e}")
-        messagebox.showerror("Error", f"No se pudo iniciar TightVNC: {e}")
+        err_msg = f"Error inesperado al intentar iniciar TightVNC: {e}"
+        log.error(err_msg, exc_info=True)
+        messagebox.showerror("Error", err_msg)

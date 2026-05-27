@@ -1,6 +1,7 @@
 from __future__ import annotations
 import pandas as pd
 from datetime import datetime
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from mtdataonemine.db import get_engine_local
 
@@ -16,13 +17,14 @@ def select_cartir_del_dia(engine: Engine) -> pd.DataFrame:
     FROM Cartir
     ORDER BY CartirId DESC
     """
-    return pd.read_sql_query(q, engine)
+    with engine.connect() as conn:
+        return pd.read_sql_query(q, conn)
 
 def select_cartir_por_turno(engine: Engine, cartir_id: int, turno_actual: str) -> pd.DataFrame:
     """
     Detalle de Tasks para un Cartir y turno (A/B).
     """
-    q = f"""
+    q = text("""
         SELECT
             T.TaskId, 
             T.CartirId, 
@@ -38,22 +40,24 @@ def select_cartir_por_turno(engine: Engine, cartir_id: int, turno_actual: str) -
         INNER JOIN MTZone Z2 ON Z.ParentZoneId = Z2.ZoneId
         INNER JOIN Shift S ON T.ShiftId = S.ShiftId
         INNER JOIN MTZone Z3 ON T.SectorId = Z3.ZoneId
-        WHERE T.CartirId = {cartir_id} AND S.Name = '{turno_actual}'
-    """
-    return pd.read_sql_query(q, engine)
+        WHERE T.CartirId = :cartir_id AND S.Name = :turno_actual
+    """)
+    with engine.connect() as conn:
+        return pd.read_sql_query(q, conn, params={"cartir_id": cartir_id, "turno_actual": turno_actual})
 
 def select_resumen_turno(engine: Engine, cartir_id: int, shift_id: int) -> pd.DataFrame:
-    q = f"""
+    q = text("""
         SELECT
-            {cartir_id} AS CartirId,
-            (SELECT Name FROM Shift WHERE ShiftId = {shift_id}) AS Shift,
+            :cartir_id AS CartirId,
+            (SELECT Name FROM Shift WHERE ShiftId = :shift_id) AS Shift,
             SUM(PailQuantity) AS Total,
             COUNT(*) AS Ingresos
         FROM Task
-        WHERE ShiftId = {shift_id} AND CartirId = {cartir_id}
+        WHERE ShiftId = :shift_id AND CartirId = :cartir_id
         GROUP BY CartirId
-    """
-    return pd.read_sql_query(q, engine)
+    """)
+    with engine.connect() as conn:
+        return pd.read_sql_query(q, conn, params={"cartir_id": cartir_id, "shift_id": shift_id})
 
 
 def select_cartir_dia_variable(engine: Engine) -> pd.DataFrame:
@@ -86,17 +90,19 @@ def select_cartir_dia_variable(engine: Engine) -> pd.DataFrame:
             FROM Cartir c
             WHERE CAST(c.CartirDate AS DATE) = CAST(@inputDate AS DATE);
         """
-    return pd.read_sql_query(q, engine)
+    with engine.connect() as conn:
+        return pd.read_sql_query(q, conn)
 
 
 def select_cartirid_ultimo(engine: Engine) -> int | None:
     q = "SELECT TOP 1 CartirId FROM Cartir ORDER BY CartirDate DESC"
-    df = pd.read_sql_query(q, engine)
+    with engine.connect() as conn:
+        df = pd.read_sql_query(q, conn)
     return int(df.iloc[0, 0]) if not df.empty else None
 
 
 def select_tasks_por_cartir(engine: Engine, cartir_id: int) -> pd.DataFrame:
-    q = f"""
+    q = text("""
         SELECT 
             TaskId, CartirId, ShiftId, SectorId, StreetId, SpotId, 
             NULL AS Placeholder1, PailQuantity, 0 AS Placeholder2, 
@@ -105,6 +111,7 @@ def select_tasks_por_cartir(engine: Engine, cartir_id: int) -> pd.DataFrame:
             FORMAT(CreatedAt, 'yyyy-MM-dd HH:mm:ss.fffffff') + ' -03:00' AS CreatedAt,
             NULL AS Placeholder3, NULL AS Placeholder4
         FROM Task
-        WHERE CartirId = {cartir_id}
-    """
-    return pd.read_sql_query(q, engine)
+        WHERE CartirId = :cartir_id
+    """)
+    with engine.connect() as conn:
+        return pd.read_sql_query(q, conn, params={"cartir_id": cartir_id})

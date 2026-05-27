@@ -2,15 +2,16 @@ from __future__ import annotations
 from typing import Optional, Tuple
 import pandas as pd
 import pyodbc
+from sqlalchemy import text
 
 def fetch_estado_between(engine, s_iso: str, e_iso: str) -> pd.DataFrame:
     """
     Lee “Estado” desde la BD local (engine).
     s_iso / e_iso: datetimes con offset formateados (ej: '2025-01-10 08:00:00.0000000 -03:00')
     """
-    sql = f"""
-    DECLARE @fechaInicio datetimeoffset(7) = '{s_iso}';
-    DECLARE @fechaFin    datetimeoffset(7) = '{e_iso}';
+    sql = text("""
+    DECLARE @fechaInicio datetimeoffset(7) = :s_iso;
+    DECLARE @fechaFin    datetimeoffset(7) = :e_iso;
 
     SELECT
         Machine.Name AS LHD,
@@ -25,8 +26,9 @@ def fetch_estado_between(engine, s_iso: str, e_iso: str) -> pd.DataFrame:
     LEFT JOIN  MTUser   ON StatusLogSync.UserId     = MTUser.UserId
     WHERE StatusLogSync.CreatedAt BETWEEN @fechaInicio AND @fechaFin
     ORDER BY StatusLogSync.CreatedAt DESC;
-    """
-    return pd.read_sql_query(sql, engine)
+    """)
+    with engine.connect() as conn:
+        return pd.read_sql_query(sql, conn, params={"s_iso": s_iso, "e_iso": e_iso})
 
 
 def fetch_machine_status(ip: str, remote_db: str, user: str, pwd: str,
@@ -42,9 +44,9 @@ def fetch_machine_status(ip: str, remote_db: str, user: str, pwd: str,
         f"TrustServerCertificate=yes;Encrypt=no;"
     )
 
-    sql = f"""
-    DECLARE @fechaInicio DATETIME2 = '{dt_start_iso}';
-    DECLARE @fechaFin    DATETIME2 = '{dt_end_iso}';
+    sql = """
+    DECLARE @fechaInicio DATETIME2 = ?;
+    DECLARE @fechaFin    DATETIME2 = ?;
 
     SELECT *
     FROM MachineStatusLog
@@ -57,4 +59,4 @@ def fetch_machine_status(ip: str, remote_db: str, user: str, pwd: str,
     """
 
     with pyodbc.connect(conn_str) as conn:
-        return pd.read_sql_query(sql, conn)
+        return pd.read_sql_query(sql, conn, params=[dt_start_iso, dt_end_iso])
